@@ -1,4 +1,4 @@
-# affected-tests
+# Affected Tests Runner
 
 Run only the tests affected by your code changes. Uses dependency analysis to find test files that import (directly or transitively) any modified files in your PR.
 
@@ -15,15 +15,15 @@ Run only the tests affected by your code changes. Uses dependency analysis to fi
 
 Works with any test runner that accepts spec files as CLI arguments:
 
-| Test Runner | Compatible | Example Command |
-|-------------|------------|-----------------|
-| **Jest** | ✅ | `jest {specs}` |
-| **Vitest** | ✅ | `vitest run {specs}` |
-| **Cypress Component Testing** | ✅ | `cypress run --component --spec "{specs}"` |
-| **Mocha** | ✅ | `mocha {specs}` |
-| **Playwright Component Testing** | ✅ | `playwright test {specs}` |
-| **AVA** | ✅ | `ava {specs}` |
-| **Cypress E2E** | ❌ | Not supported - E2E tests don't import source files |
+| Test Runner                      | Compatible | Example Command                                     |
+| -------------------------------- | ---------- | --------------------------------------------------- |
+| **Jest**                         | ✅         | `jest {specs}`                                      |
+| **Vitest**                       | ✅         | `vitest run {specs}`                                |
+| **Cypress Component Testing**    | ✅         | `cypress run --component --spec "{specs}"`          |
+| **Mocha**                        | ✅         | `mocha {specs}`                                     |
+| **Playwright Component Testing** | ✅         | `playwright test {specs}`                           |
+| **AVA**                          | ✅         | `ava {specs}`                                       |
+| **Cypress E2E**                  | ❌         | Not supported - E2E tests don't import source files |
 
 > **Note:** This tool relies on analyzing import/dependency chains between your source code and test files. It works with **unit tests** and **component tests** that import the code they're testing. **E2E tests** typically don't import source files directly, so dependency analysis won't find them.
 
@@ -58,29 +58,29 @@ affected-tests [command] [options]
 
 ### Commands
 
-| Command   | Description                                      |
-| --------- | ------------------------------------------------ |
-| `run`     | Run affected tests (default)                     |
-| `analyze` | Analyze affected tests without running           |
-| `groups`  | Output optimal number of groups for CI matrix    |
+| Command   | Description                                   |
+| --------- | --------------------------------------------- |
+| `run`     | Run affected tests (default)                  |
+| `analyze` | Analyze affected tests without running        |
+| `groups`  | Output optimal number of groups for CI matrix |
 
 ### Options
 
-| Option               | Description                                            | Default                    |
-| -------------------- | ------------------------------------------------------ | -------------------------- |
-| `--config <path>`    | Path to config file                                    | Auto-detected              |
-| `--src-dir <path>`   | Source directory to analyze                            | `./src`                    |
-| `--base-dir <path>`  | Base directory (where tsconfig.json is)                | `cwd`                      |
-| `--path-prefix`      | Path prefix for monorepos (e.g., `apps/web/`)          | `""`                       |
-| `--base-branch`      | Base branch to compare against                         | `master`                   |
-| `--test-command`     | Test command template (use `{specs}` placeholder)      | `npx cypress run...`       |
-| `--test-pattern`     | Regex pattern for test files                           | `\.spec\.(ts\|tsx\|js)$`   |
-| `--max-tests <n>`    | Max tests per group                                    | `20`                       |
-| `--group <n>`        | Group index (0-based) for parallel runs                | -                          |
-| `--total-groups <n>` | Total number of groups                                 | -                          |
-| `--verbose`          | Enable verbose output                                  | `false`                    |
-| `--dry-run`          | Show what would run without executing                  | `false`                    |
-| `--json`             | Output results as JSON (for `analyze` command)         | `false`                    |
+| Option               | Description                                       | Default                       |
+| -------------------- | ------------------------------------------------- | ----------------------------- |
+| `--config <path>`    | Path to config file                               | Auto-detected                 |
+| `--src-dir <path>`   | Source directory to analyze                       | `./src`                       |
+| `--base-dir <path>`  | Base directory (where tsconfig.json is)           | `cwd`                         |
+| `--path-prefix`      | Path prefix for monorepos (e.g., `apps/web/`)     | `""`                          |
+| `--base-branch`      | Base branch to compare against                    | `master`                      |
+| `--test-command`     | Test command template (use `{specs}` placeholder) | `npx cypress run...`          |
+| `--test-pattern`     | Regex pattern for test files                      | `\.spec\.(ts\|tsx\|js\|jsx)$` |
+| `--max-tests <n>`    | Max tests per group                               | `20`                          |
+| `--group <n>`        | Group index (0-based) for parallel runs           | -                             |
+| `--total-groups <n>` | Total number of groups                            | -                             |
+| `--verbose`          | Enable verbose output                             | `false`                       |
+| `--dry-run`          | Show what would run without executing             | `false`                       |
+| `--json`             | Output results as JSON (for `analyze` command)    | `false`                       |
 
 ### Examples
 
@@ -96,6 +96,15 @@ affected-tests analyze --base-branch main --json
 
 # Monorepo usage
 affected-tests run --path-prefix 'packages/app/' --src-dir './src'
+
+# Run all groups in parallel locally
+GROUPS=$(npx affected-tests groups) && \
+  if (( GROUPS > 0 )); then \
+    seq 0 $((GROUPS-1)) | xargs -P "$GROUPS" -I {} \
+      npx affected-tests run --group {} --total-groups "$GROUPS"; \
+  else \
+    echo "No affected tests to run"; \
+  fi
 ```
 
 ## Configuration File
@@ -105,25 +114,25 @@ Create `affected-tests.config.js` in your project root:
 ```javascript
 module.exports = {
   // Source directory to analyze for dependencies
-  srcDir: './src',
+  srcDir: "./src",
 
   // Base directory (where tsconfig.json is located)
   baseDir: process.cwd(),
 
   // Path prefix for monorepos
-  pathPrefix: 'apps/web/',
+  pathPrefix: "apps/web/",
 
   // Branch to compare against
-  baseBranch: 'main',
+  baseBranch: "main",
 
   // Test file pattern (as string or RegExp)
-  testFilePattern: '\\.spec\\.(ts|tsx)$',
+  testFilePattern: "\\.spec\\.(ts|tsx)$",
 
   // File extensions to analyze
-  fileExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  fileExtensions: ["ts", "tsx", "js", "jsx"],
 
   // Path to tsconfig.json relative to baseDir
-  tsConfigPath: 'tsconfig.json',
+  tsConfigPath: "tsconfig.json",
 
   // Patterns to exclude from analysis
   excludePatterns: [/node_modules/, /\.generated\./],
@@ -143,6 +152,7 @@ module.exports = {
 ```
 
 Supported config file names (in order of priority):
+
 - `affected-tests.config.js`
 - `affected-tests.config.mjs`
 - `affected-tests.config.json`
@@ -156,12 +166,12 @@ import {
   runAffectedTests,
   analyzeAffectedTests,
   getOptimalGroupCount,
-} from 'affected-tests';
+} from "affected-tests";
 
 // Analyze affected tests
 const analysis = await analyzeAffectedTests({
-  srcDir: './src',
-  pathPrefix: 'apps/web/',
+  srcDir: "./src",
+  pathPrefix: "apps/web/",
 });
 
 console.log(analysis);
@@ -174,10 +184,7 @@ console.log(analysis);
 // }
 
 // Run affected tests
-await runAffectedTests(
-  { srcDir: './src' },
-  { groupIndex: 0, totalGroups: 3 }
-);
+await runAffectedTests({ srcDir: "./src" }, { groupIndex: 0, totalGroups: 3 });
 
 // Get optimal group count for CI
 const groups = await getOptimalGroupCount({ maxTestsPerGroup: 10 });
@@ -194,11 +201,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for git diff
+          fetch-depth: 0 # Required for git diff
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - run: npm ci
       - run: npx affected-tests run
