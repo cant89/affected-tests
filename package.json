@@ -1,6 +1,6 @@
 {
   "name": "@cant89/affected-tests",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Run only the tests affected by changed files in your PR. Uses dependency analysis to find test files that depend on modified code.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
