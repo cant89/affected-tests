@@ -29,11 +29,11 @@
     "test-runner",
     "dependency-analysis"
   ],
-  "author": "",
+  "author": "Davide Cantelli",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/cant89/affected-tests"
   },
   "engines": {
     "node": ">=18.0.0"
