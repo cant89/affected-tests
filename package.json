@@ -1,0 +1,53 @@
+{
+  "name": "affected-tests",
+  "version": "0.0.1",
+  "description": "Run only the tests affected by changed files in your PR. Uses dependency analysis to find test files that depend on modified code.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "affected-tests": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "testing",
+    "cypress",
+    "jest",
+    "vitest",
+    "affected",
+    "git",
+    "ci",
+    "test-runner",
+    "dependency-analysis"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "madge": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {},
+  "publishConfig": {
+    "access": "public"
+  }
+}
