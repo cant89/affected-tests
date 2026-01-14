@@ -128,9 +128,14 @@ export function getChangedFiles(config: Config, logger: Logger): string[] {
     const allChangedFiles: Set<string> = new Set();
 
     // Get committed changes between branches
-    logger.debug(`Running git diff between ${targetBranch} and ${currentBranch}`);
+    // Use merge-base to find the common ancestor, so we only detect changes
+    // introduced on the current branch (not new commits on the target branch)
+    const mergeBase = execSync(`git merge-base ${targetBranch} ${currentBranch}`)
+      .toString()
+      .trim();
+    logger.debug(`Running git diff between merge-base (${mergeBase.slice(0, 7)}) and ${currentBranch}`);
     const committedChanges = execSync(
-      `git diff --name-only ${targetBranch} ${currentBranch}`
+      `git diff --name-only ${mergeBase} ${currentBranch}`
     )
       .toString()
       .split('\n')

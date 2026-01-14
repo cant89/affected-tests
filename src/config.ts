@@ -1,18 +1,18 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import type { Config, PartialConfig, Logger } from './types';
+import * as fs from "fs";
+import * as path from "path";
+import type { Config, PartialConfig, Logger } from "./types";
 
 /**
  * Default configuration values
  */
 export const DEFAULT_CONFIG: Config = {
-  srcDir: './src',
+  srcDir: "./src",
   baseDir: process.cwd(),
-  pathPrefix: '',
-  baseBranch: 'master',
+  pathPrefix: "",
+  baseBranch: "master",
   testFilePattern: /\.spec\.(ts|tsx|js|jsx)$/,
-  fileExtensions: ['ts', 'tsx', 'js', 'jsx'],
-  tsConfigPath: 'tsconfig.json',
+  fileExtensions: ["ts", "tsx", "js", "jsx"],
+  tsConfigPath: "tsconfig.json",
   excludePatterns: [/node_modules/],
   testCommand: 'npx cypress run --component --spec "{specs}"',
   maxTestsPerGroup: 20,
@@ -24,11 +24,11 @@ export const DEFAULT_CONFIG: Config = {
  * Config file names to look for (in order of priority)
  */
 const CONFIG_FILE_NAMES = [
-  'affected-tests.config.js',
-  'affected-tests.config.mjs',
-  'affected-tests.config.json',
-  '.affected-testsrc',
-  '.affected-testsrc.json',
+  "affected-tests.config.js",
+  "affected-tests.config.mjs",
+  "affected-tests.config.json",
+  ".affected-testsrc",
+  ".affected-testsrc.json",
 ];
 
 /**
@@ -99,12 +99,12 @@ export async function loadConfigFile(
 async function loadConfigFromPath(filePath: string): Promise<PartialConfig> {
   const ext = path.extname(filePath);
 
-  if (ext === '.json' || filePath.endsWith('rc')) {
-    const content = fs.readFileSync(filePath, 'utf-8');
+  if (ext === ".json" || filePath.endsWith("rc")) {
+    const content = fs.readFileSync(filePath, "utf-8");
     return parseJsonConfig(JSON.parse(content));
   }
 
-  if (ext === '.js' || ext === '.mjs') {
+  if (ext === ".js" || ext === ".mjs") {
     // Dynamic import for JS config files - no need to parse, JS can have native RegExp
     const config = await import(filePath);
     return (config.default || config) as PartialConfig;
@@ -120,14 +120,14 @@ function parseJsonConfig(config: Record<string, unknown>): PartialConfig {
   const result: PartialConfig = { ...config } as PartialConfig;
 
   // Convert testFilePattern string to RegExp
-  if (typeof config.testFilePattern === 'string') {
+  if (typeof config.testFilePattern === "string") {
     result.testFilePattern = new RegExp(config.testFilePattern);
   }
 
   // Convert excludePatterns strings to RegExp array
   if (Array.isArray(config.excludePatterns)) {
     result.excludePatterns = config.excludePatterns.map((pattern) =>
-      typeof pattern === 'string' ? new RegExp(pattern) : pattern
+      typeof pattern === "string" ? new RegExp(pattern) : pattern
     );
   }
 
