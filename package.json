@@ -1,5 +1,5 @@
 {
-  "name": "affected-tests",
+  "name": "@cant89/affected-tests",
   "version": "0.0.1",
   "description": "Run only the tests affected by changed files in your PR. Uses dependency analysis to find test files that depend on modified code.",
   "main": "dist/index.js",
@@ -33,7 +33,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cant89/affected-tests"
+    "url": "git+https://github.com/cant89/affected-tests.git"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -11,6 +11,22 @@ Run only the tests affected by your code changes. Uses dependency analysis to fi
 - **GitHub Actions integration** - Detects PR context and base branches automatically
 - **Zero config** - Sensible defaults work out of the box
 
+## Compatible Test Runners
+
+Works with any test runner that accepts spec files as CLI arguments:
+
+| Test Runner | Compatible | Example Command |
+|-------------|------------|-----------------|
+| **Jest** | ✅ | `jest {specs}` |
+| **Vitest** | ✅ | `vitest run {specs}` |
+| **Cypress Component Testing** | ✅ | `cypress run --component --spec "{specs}"` |
+| **Mocha** | ✅ | `mocha {specs}` |
+| **Playwright Component Testing** | ✅ | `playwright test {specs}` |
+| **AVA** | ✅ | `ava {specs}` |
+| **Cypress E2E** | ❌ | Not supported - E2E tests don't import source files |
+
+> **Note:** This tool relies on analyzing import/dependency chains between your source code and test files. It works with **unit tests** and **component tests** that import the code they're testing. **E2E tests** typically don't import source files directly, so dependency analysis won't find them.
+
 ## Installation
 
 ```bash
