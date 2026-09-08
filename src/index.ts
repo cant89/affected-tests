@@ -2,13 +2,20 @@ import type {
   Config,
   PartialConfig,
   AnalysisResult,
+  GroupMatrix,
   RunOptions,
   Logger,
 } from './types';
 import { resolveConfig, consoleLogger, silentLogger, createLogger, DEFAULT_CONFIG } from './config';
 import { getChangedFiles } from './git';
 import { getDependentFiles, isTestFile } from './dependencies';
-import { splitIntoGroups, calculateOptimalGroups, getGroupMatrix } from './groups';
+import {
+  buildGroupMatrix,
+  splitAllGroups,
+  splitIntoGroups,
+  calculateOptimalGroups,
+  getGroupMatrix,
+} from './groups';
 import { runTests } from './runner';
 
 // Re-export types
@@ -16,24 +23,64 @@ export type {
   Config,
   PartialConfig,
   AnalysisResult,
+  GroupMatrix,
+  GroupMatrixEntry,
+  GroupMatrixOptions,
   RunOptions,
   Logger,
   DependentFile,
 } from './types';
 
 // Re-export utilities
-export { DEFAULT_CONFIG, resolveConfig, consoleLogger, silentLogger, createLogger } from './config';
-export { splitIntoGroups, calculateOptimalGroups, getGroupMatrix } from './groups';
+export {
+  DEFAULT_CONFIG,
+  resolveConfig,
+  normalizeConfigPatterns,
+  consoleLogger,
+  silentLogger,
+  stderrLogger,
+  createLogger,
+} from './config';
+export {
+  buildGroupMatrix,
+  splitAllGroups,
+  splitIntoGroups,
+  calculateOptimalGroups,
+  getGroupMatrix,
+} from './groups';
 export { isTestFile } from './dependencies';
+export { addPathPrefix, formatSpecs, stripPathPrefix } from './paths';
 
 /**
  * Analyze which tests are affected by changes in the current branch
+ *
+ * @param options - Config overrides. The config file is read on each call.
+ * @param customLogger - Logger that receives the progress output.
+ * @returns The changed files, the affected test files, and the group count.
+ * @throws {Error} When a git command or the dependency analysis fails.
  */
 export async function analyzeAffectedTests(
   options: PartialConfig & { configPath?: string } = {},
   customLogger?: Logger
 ): Promise<AnalysisResult> {
   const config = await resolveConfig(options);
+  return analyzeWithConfig(config, customLogger);
+}
+
+/**
+ * Analyze which tests are affected, from a configuration that is already
+ * resolved. Use it to keep a caller that resolves the config itself from
+ * reading the config file a second time.
+ *
+ * @param config - Fully resolved configuration.
+ * @param customLogger - Logger that receives the progress output.
+ * @returns The changed files, the affected test files, and the group count.
+ * @throws {Error} When a git command or the dependency analysis fails.
+ */
+export async function analyzeWithConfig(
+  config: Config,
+  customLogger?: Logger
+): Promise<AnalysisResult> {
   const logger = customLogger || createLogger(config.verbose);
 
   if (config.verbose) {
@@ -107,7 +154,8 @@ export async function analyzeAffectedTests(
 
   const optimalGroups = calculateOptimalGroups(
     allTestFiles.length,
-    config.maxTestsPerGroup
+    config.maxTestsPerGroup,
+    config.maxGroups
   );
 
   return {
@@ -129,7 +177,7 @@ export async function runAffectedTests(
 ): Promise<void> {
   const config = await resolveConfig(options);
   const logger = customLogger || createLogger(config.verbose);
-  const analysis = await analyzeAffectedTests(options, logger);
+  const analysis = await analyzeWithConfig(config, logger);
 
   if (analysis.allTestFiles.length === 0) {
     logger.log('\nℹ️ No affected test files found');
@@ -189,6 +237,13 @@ export async function runAffectedTests(
 /**
  * Get the optimal number of groups for CI matrix
  * Outputs only the number for easy capture in CI scripts
+ *
+ * @param options - Config overrides.
+ * @param logger - Logger that receives the progress output.
+ * @returns The number of groups, or 0 when no test is affected.
+ * @throws {Error} When a git command or the dependency analysis fails.
+ * @deprecated Use {@link getAffectedTestMatrix}. A bare count makes each CI job
+ * repeat the git fetch and the dependency analysis to learn its own specs.
  */
 export async function getOptimalGroupCount(
   options: PartialConfig & { configPath?: string } = {},
@@ -199,12 +254,37 @@ export async function getOptimalGroupCount(
 }
 
 /**
+ * Analyze the affected tests once and return a CI matrix that carries the spec
+ * list of each group.
+ *
+ * @param options - Config overrides.
+ * @param logger - Logger that receives the progress output. It must not write
+ * to stdout when the caller prints the matrix there.
+ * @returns A matrix with one entry for each group. The `include` list is empty
+ * when no test is affected.
+ * @throws {Error} When a git command or the dependency analysis fails.
+ */
+export async function getAffectedTestMatrix(
+  options: PartialConfig & { configPath?: string } = {},
+  logger: Logger = silentLogger
+): Promise<GroupMatrix> {
+  const config = await resolveConfig(options);
+  const analysis = await analyzeWithConfig(config, logger);
+
+  return buildGroupMatrix(analysis.allTestFiles, config);
+}
+
+/**
  * Main entry point for programmatic usage
  */
 export default {
   analyzeAffectedTests,
+  analyzeWithConfig,
   runAffectedTests,
+  getAffectedTestMatrix,
   getOptimalGroupCount,
+  buildGroupMatrix,
+  splitAllGroups,
   splitIntoGroups,
   calculateOptimalGroups,
   getGroupMatrix,

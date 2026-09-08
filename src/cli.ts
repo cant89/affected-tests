@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 
-import { runAffectedTests, getOptimalGroupCount, analyzeAffectedTests, consoleLogger } from './index';
+import {
+  runAffectedTests,
+  getOptimalGroupCount,
+  getAffectedTestMatrix,
+  analyzeAffectedTests,
+  consoleLogger,
+  silentLogger,
+  stderrLogger,
+} from './index';
 import type { PartialConfig, RunOptions } from './types';
 
 interface CLIArgs {
-  command: 'run' | 'analyze' | 'groups' | 'help' | 'version';
+  command: 'run' | 'analyze' | 'groups' | 'matrix' | 'help' | 'version';
   config?: string;
   srcDir?: string;
   baseDir?: string;
@@ -13,6 +21,7 @@ interface CLIArgs {
   testCommand?: string;
   testFilePattern?: string;
   maxTestsPerGroup?: number;
+  maxGroups?: number;
   groupIndex?: number;
   totalGroups?: number;
   verbose?: boolean;
@@ -30,7 +39,8 @@ USAGE:
 COMMANDS:
   run       Run affected tests (default)
   analyze   Analyze affected tests without running
-  groups    Output optimal number of groups for CI matrix
+  matrix    Output a CI matrix that carries the specs of each group
+  groups    Output optimal number of groups for CI matrix (deprecated)
 
 OPTIONS:
   --config <path>           Path to config file
@@ -41,6 +51,7 @@ OPTIONS:
   --test-command <cmd>      Test command template (use {specs} placeholder)
   --test-pattern <regex>    Test file pattern (default: \\.spec\\.(ts|tsx|js|jsx)$)
   --max-tests <n>           Max tests per group (default: 20)
+  --max-groups <n>          Cap on the number of groups (default: 0, no cap)
   --group <n>               Group index (0-based) for parallel execution
   --total-groups <n>        Total number of groups
   --verbose                 Enable verbose output
@@ -58,6 +69,10 @@ EXAMPLES:
 
   # Analyze without running
   affected-tests analyze --json
+
+  # Get the CI matrix, analyzed once, with the specs of each group
+  affected-tests matrix
+  # {"include":[{"group":0,"specs":"src/a.spec.ts","files":["src/a.spec.ts"]}]}
 
   # Get optimal group count for CI
   affected-tests groups
@@ -96,6 +111,7 @@ function parseArgs(args: string[]): CLIArgs {
       case 'run':
       case 'analyze':
       case 'groups':
+      case 'matrix':
         result.command = arg;
         break;
       case 'help':
@@ -140,6 +156,10 @@ function parseArgs(args: string[]): CLIArgs {
         result.maxTestsPerGroup = parseInt(nextArg, 10);
         i++;
         break;
+      case '--max-groups':
+        result.maxGroups = parseInt(nextArg, 10);
+        i++;
+        break;
       case '--group':
         result.groupIndex = parseInt(nextArg, 10);
         i++;
@@ -174,6 +194,8 @@ function buildConfigFromArgs(args: CLIArgs): PartialConfig & { configPath?: stri
   if (args.testCommand) config.testCommand = args.testCommand;
   if (args.testFilePattern) config.testFilePattern = new RegExp(args.testFilePattern);
   if (args.maxTestsPerGroup) config.maxTestsPerGroup = args.maxTestsPerGroup;
+  if (args.maxGroups !== undefined && !Number.isNaN(args.maxGroups))
+    config.maxGroups = args.maxGroups;
   if (args.verbose) config.verbose = args.verbose;
 
   return config;
@@ -208,6 +230,19 @@ async function main(): Promise<void> {
         const config = buildConfigFromArgs(args);
         const groups = await getOptimalGroupCount(config);
         console.log(groups);
+        break;
+      }
+
+      case 'matrix': {
+        const config = buildConfigFromArgs(args);
+        const matrix = await getAffectedTestMatrix(
+          config,
+          args.verbose ? stderrLogger : silentLogger
+        );
+
+        // One line on stdout: a CI step output holds a single-line value, and
+        // every progress message goes to stderr.
+        process.stdout.write(`${JSON.stringify(matrix)}\n`);
         break;
       }
 

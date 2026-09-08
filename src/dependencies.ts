@@ -1,5 +1,6 @@
 import * as path from 'path';
 import madge from 'madge';
+import { addPathPrefix, stripPathPrefix } from './paths';
 import type { Config, DependentFile, Logger } from './types';
 
 /**
@@ -17,26 +18,6 @@ function buildMadgeConfig(config: Config): Record<string, unknown> {
       },
     },
   };
-}
-
-/**
- * Convert a relative path to include the configured path prefix
- */
-function toFullPath(filePath: string, pathPrefix: string): string {
-  if (!pathPrefix) {
-    return filePath;
-  }
-  return `${pathPrefix}${filePath}`;
-}
-
-/**
- * Remove the path prefix from a file path
- */
-function removePathPrefix(filePath: string, pathPrefix: string): string {
-  if (!pathPrefix) {
-    return filePath;
-  }
-  return filePath.replace(pathPrefix, '');
 }
 
 /**
@@ -82,12 +63,12 @@ export async function getDependentFiles(
       processedFiles.add(filePath);
 
       // Remove path prefix to get the relative path for madge lookup
-      const relativePath = removePathPrefix(filePath, config.pathPrefix);
+      const relativePath = stripPathPrefix(filePath, config.pathPrefix);
       const dependencies = dependencyTree.depends(relativePath);
 
       await Promise.all(
         dependencies.map(async (dep) => {
-          const fullPath = toFullPath(dep, config.pathPrefix);
+          const fullPath = addPathPrefix(dep, config.pathPrefix);
           const newChain = [...chain, filePath];
           allDependentFiles.set(fullPath, newChain);
           await findDependencies(fullPath, newChain);

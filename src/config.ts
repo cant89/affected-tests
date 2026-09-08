@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: Config = {
   excludePatterns: [/node_modules/],
   testCommand: 'npx cypress run --component --spec "{specs}"',
   maxTestsPerGroup: 20,
+  maxGroups: 0,
   skipTypeImports: true,
   verbose: false,
 };
@@ -38,6 +39,16 @@ export const consoleLogger: Logger = {
   log: (message: string) => console.log(message),
   error: (message: string) => console.error(message),
   debug: (message: string) => console.log(message),
+};
+
+/**
+ * Logger that writes every message to stderr.
+ * Use it when stdout must stay a clean, machine-readable result.
+ */
+export const stderrLogger: Logger = {
+  log: (message: string) => console.error(message),
+  error: (message: string) => console.error(message),
+  debug: (message: string) => console.error(message),
 };
 
 /**
@@ -101,22 +112,29 @@ async function loadConfigFromPath(filePath: string): Promise<PartialConfig> {
 
   if (ext === ".json" || filePath.endsWith("rc")) {
     const content = fs.readFileSync(filePath, "utf-8");
-    return parseJsonConfig(JSON.parse(content));
+    return normalizeConfigPatterns(JSON.parse(content));
   }
 
   if (ext === ".js" || ext === ".mjs") {
-    // Dynamic import for JS config files - no need to parse, JS can have native RegExp
     const config = await import(filePath);
-    return (config.default || config) as PartialConfig;
+    const loaded = (config.default || config) as Record<string, unknown>;
+    // A JS config can hold a native RegExp, but it can also hold a string.
+    // Normalize both, so every loader produces the same config shape.
+    return normalizeConfigPatterns(loaded);
   }
 
   throw new Error(`Unsupported config file format: ${ext}`);
 }
 
 /**
- * Parse JSON config and convert string patterns to RegExp
+ * Convert string patterns of a loaded config to RegExp
+ *
+ * @param config - Raw config object from a config file.
+ * @returns The config with `testFilePattern` and `excludePatterns` as RegExp.
  */
-function parseJsonConfig(config: Record<string, unknown>): PartialConfig {
+export function normalizeConfigPatterns(
+  config: Record<string, unknown>
+): PartialConfig {
   const result: PartialConfig = { ...config } as PartialConfig;
 
   // Convert testFilePattern string to RegExp
