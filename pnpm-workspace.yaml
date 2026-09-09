@@ -1,0 +1,5 @@
+# pnpm 11 blocks a dependency build script until it is listed here, and it runs
+# that check before every script, including the `prepublishOnly` build. esbuild
+# backs vitest, so its build must run for the test suite to work.
+allowBuilds:
+  esbuild: true
