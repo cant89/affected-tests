@@ -133,7 +133,8 @@ export function getGroupMatrix(
  * @param options - Group size limits and the path prefix to remove.
  * @returns A matrix with one entry for each non-empty group. `group` is a
  * contiguous label, not an index into a later split, because the entry already
- * carries its specs.
+ * carries its files. The files stay an array so each consumer joins them with
+ * the separator its own runner expects.
  * @throws {Error} When `maxTestsPerGroup` or `maxGroups` is out of range, as
  * {@link calculateOptimalGroups} defines.
  */
@@ -162,11 +163,7 @@ export function buildGroupMatrix(
       groupFiles.map((file) => stripPathPrefix(file, pathPrefix))
     )
     .filter((groupFiles) => groupFiles.length > 0)
-    .map((groupFiles, group) => ({
-      group,
-      specs: groupFiles.join(','),
-      files: groupFiles,
-    }));
+    .map((groupFiles, group) => ({ group, files: groupFiles }));
 
   return { include };
 }

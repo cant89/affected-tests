@@ -291,31 +291,31 @@ jobs:
       - uses: actions/setup-node@v4
       - run: npm ci
 
-      # The spec list is comma-joined, so use a runner that accepts that form.
+      # `files` is an array, so join it with the separator your runner wants.
       # Pass it through the environment: a spec path interpolated straight into
       # the command line would run as shell input.
       - run: npx cypress run --component --spec "$SPECS"
         env:
-          SPECS: ${{ matrix.specs }}
+          SPECS: ${{ join(matrix.files) }}
 ```
 
-For a runner that takes space-separated paths, such as Jest, split the list
-first:
+`join` defaults to a comma. A runner that takes space-separated paths, such as
+Jest, asks for a space:
 
 ```yaml
-      - run: npx jest $(tr ',' ' ' <<< "$SPECS")
+      - run: npx jest $SPECS
         env:
-          SPECS: ${{ matrix.specs }}
+          SPECS: ${{ join(matrix.files, ' ') }}
 ```
 
-Each spec is relative to `pathPrefix`, so a monorepo consumer runs the step in
+Each path is relative to `pathPrefix`, so a monorepo consumer runs the step in
 that directory:
 
 ```yaml
       - run: npx cypress run --component --spec "$SPECS"
         working-directory: apps/web
         env:
-          SPECS: ${{ matrix.specs }}
+          SPECS: ${{ join(matrix.files) }}
 ```
 
 The command writes one JSON line to stdout and sends every progress message to
@@ -324,11 +324,14 @@ stderr, so the output goes straight into `$GITHUB_OUTPUT`:
 ```json
 {
   "include": [
-    { "group": 0, "specs": "src/a.spec.ts,src/c.spec.ts", "files": ["src/a.spec.ts", "src/c.spec.ts"] },
-    { "group": 1, "specs": "src/b.spec.ts", "files": ["src/b.spec.ts"] }
+    { "group": 0, "files": ["src/a.spec.ts", "src/c.spec.ts"] },
+    { "group": 1, "files": ["src/b.spec.ts"] }
   ]
 }
 ```
+
+Each entry carries the file list as an array, not a joined string, so the
+separator stays the consumer's choice.
 
 The command exits with a non-zero code when the analysis fails. Do not fall back
 to a default matrix: a wrong matrix hides untested code behind a green check.

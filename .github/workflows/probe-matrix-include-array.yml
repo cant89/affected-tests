@@ -1,0 +1,56 @@
+# TEMPORARY PROBE. Delete before merge.
+#
+# The `matrix` command emits an array for each group. GitHub does not document
+# whether a matrix `include` entry may hold a non-scalar value, so this
+# workflow answers the question with a real run: it expands a two-entry matrix
+# shaped exactly like the command's output, then reads the array back with
+# `join`.
+#
+# Pass: two jobs run, each prints its own comma-joined and space-joined list.
+# Fail: the matrix does not expand, or `join` yields an empty string.
+
+name: Probe - array in a matrix include entry
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  emit:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - id: build
+        run: |
+          MATRIX='{"include":[{"group":0,"files":["src/a.spec.ts","src/c.spec.ts"]},{"group":1,"files":["src/b.spec.ts"]}]}'
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  consume:
+    needs: emit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.emit.outputs.matrix) }}
+    steps:
+      - name: Read the array back
+        env:
+          COMMA: ${{ join(matrix.files) }}
+          SPACE: ${{ join(matrix.files, ' ') }}
+          COUNT: ${{ matrix.group }}
+        run: |
+          echo "group:  $COUNT"
+          echo "comma:  $COMMA"
+          echo "space:  $SPACE"
+
+          if [[ -z "$COMMA" ]]; then
+            echo "join() returned nothing: an include entry cannot hold an array" >&2
+            exit 1
+          fi
+
+          if [[ "$COMMA" != *"src/"* ]]; then
+            echo "join() returned an unusable value: $COMMA" >&2
+            exit 1
+          fi
+
+          echo "An include entry holds an array, and join() reads it."

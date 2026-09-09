@@ -44,7 +44,7 @@ describe('buildConfigFromArgs', () => {
 
 describe('the matrix command', () => {
   const matrix = {
-    include: [{ group: 0, specs: 'src/a.spec.ts', files: ['src/a.spec.ts'] }],
+    include: [{ group: 0, files: ['src/a.spec.ts'] }],
   };
   let stdout: string[];
   let stderr: string[];

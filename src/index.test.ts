@@ -30,7 +30,10 @@ describe('getAffectedTestMatrix', () => {
     });
 
     expect(matrix.include).toHaveLength(3);
-    expect(matrix.include[0].specs).toBe('src/s0.spec.tsx,src/s3.spec.tsx');
+    expect(matrix.include[0].files).toEqual([
+      'src/s0.spec.tsx',
+      'src/s3.spec.tsx',
+    ]);
     expect(
       matrix.include.flatMap((entry) => entry.files)
     ).toHaveLength(5);

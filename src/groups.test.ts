@@ -227,11 +227,7 @@ describe('buildGroupMatrix', () => {
     });
 
     expect(matrix.include).toEqual([
-      {
-        group: 0,
-        specs: 'src/a.spec.tsx,src/b.spec.tsx',
-        files: ['src/a.spec.tsx', 'src/b.spec.tsx'],
-      },
+      { group: 0, files: ['src/a.spec.tsx', 'src/b.spec.tsx'] },
     ]);
   });
 
@@ -256,13 +252,13 @@ describe('buildGroupMatrix', () => {
       (_, i) => `apps/web/src/spec-${String(i).padStart(2, '0')}.spec.tsx`
     );
 
-    const specs = buildGroupMatrix(files, {
+    const covered = buildGroupMatrix(files, {
       maxTestsPerGroup: 10,
       pathPrefix: 'apps/web/',
-    }).include.flatMap((entry) => entry.specs.split(','));
+    }).include.flatMap((entry) => entry.files);
 
-    expect(specs).toHaveLength(25);
-    expect(new Set(specs).size).toBe(25);
+    expect(covered).toHaveLength(25);
+    expect(new Set(covered).size).toBe(25);
   });
 
   it('should respect the group cap', () => {
@@ -282,13 +278,15 @@ describe('buildGroupMatrix', () => {
     ]);
   });
 
-  it('should not emit a group with an empty spec list', () => {
+  it('should not emit a group with an empty file list', () => {
     const matrix = buildGroupMatrix(['src/a.spec.tsx'], {
       maxTestsPerGroup: 10,
     });
 
     expect(matrix.include).toHaveLength(1);
-    matrix.include.forEach((entry) => expect(entry.specs).not.toBe(''));
+    matrix.include.forEach((entry) =>
+      expect(entry.files.length).toBeGreaterThan(0)
+    );
   });
 
   it('should cover every file once when the cap forces uneven groups', () => {
@@ -299,9 +297,10 @@ describe('buildGroupMatrix', () => {
       maxGroups: 3,
     });
 
-    const specs = matrix.include.flatMap((entry) => entry.specs.split(','));
     expect(matrix.include.map((entry) => entry.files.length)).toEqual([4, 3, 3]);
-    expect(new Set(specs).size).toBe(10);
+    expect(new Set(matrix.include.flatMap((entry) => entry.files)).size).toBe(
+      10
+    );
   });
 
   it('should throw for a non-integer maximum group size', () => {

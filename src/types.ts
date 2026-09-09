@@ -123,9 +123,12 @@ export interface AnalysisResult {
 export interface GroupMatrixEntry {
   /** Contiguous label of the group, starting at 0 */
   group: number;
-  /** Comma-joined spec list, ready for a test runner argument */
-  specs: string;
-  /** Test files of this group, with the path prefix removed */
+  /**
+   * Test files of this group, with the path prefix removed.
+   * A CI job joins them with the separator its runner expects. In GitHub
+   * Actions that is `join(matrix.files)` for a comma, or
+   * `join(matrix.files, ' ')` for a space.
+   */
   files: string[];
 }
 

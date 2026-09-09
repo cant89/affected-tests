@@ -72,7 +72,7 @@ EXAMPLES:
 
   # Get the CI matrix, analyzed once, with the specs of each group
   affected-tests matrix
-  # {"include":[{"group":0,"specs":"src/a.spec.ts","files":["src/a.spec.ts"]}]}
+  # {"include":[{"group":0,"files":["src/a.spec.ts"]}]}
 
   # Get optimal group count for CI
   affected-tests groups
