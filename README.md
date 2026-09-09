@@ -159,6 +159,17 @@ module.exports = {
 };
 ```
 
+### Validation
+
+`maxTestsPerGroup` must be an integer of 1 or more, and `maxGroups` an integer
+of 0 or more. A value outside that range fails the command instead of running a
+reduced set of tests.
+
+`calculateOptimalGroups`, `buildGroupMatrix`, and `getAffectedTestMatrix` throw
+for such a value. Before version 0.1.0, `calculateOptimalGroups` returned
+`Infinity` for a `maxTestsPerGroup` of 0, and the caller went on to build a
+matrix from it.
+
 Supported config file names (in order of priority):
 
 - `affected-tests.config.js`
