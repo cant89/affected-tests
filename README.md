@@ -282,6 +282,9 @@ jobs:
     needs: calculate-groups
     # An empty include list cannot expand a matrix, so guard the job.
     if: needs.calculate-groups.outputs.total-groups > 0
+    # Name the job. The default name lists every value of the include entry,
+    # so it would carry the complete file list.
+    name: Test group ${{ matrix.group }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
