@@ -174,7 +174,7 @@ import {
   runAffectedTests,
   analyzeAffectedTests,
   getAffectedTestMatrix,
-} from "affected-tests";
+} from "affected-tests-runner";
 
 // Analyze affected tests
 const analysis = await analyzeAffectedTests({
@@ -213,7 +213,7 @@ import {
   analyzeWithConfig,
   buildGroupMatrix,
   silentLogger,
-} from "affected-tests";
+} from "affected-tests-runner";
 
 const config = await resolveConfig({});
 const analysis = await analyzeWithConfig(config, silentLogger);
@@ -265,8 +265,18 @@ jobs:
       - id: groups
         run: |
           MATRIX=$(npx affected-tests matrix)
+
+          # Validate before writing either output. Writing the count inside an
+          # echo would mask a jq failure behind echo's own exit code, and an
+          # empty total-groups skips the test job behind a green check.
+          if ! jq -e '.include | type == "array"' <<< "$MATRIX" > /dev/null; then
+            echo "Invalid test matrix: $MATRIX" >&2
+            exit 1
+          fi
+
+          TOTAL_GROUPS=$(jq -r '.include | length' <<< "$MATRIX")
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "total-groups=$(jq -r '.include | length' <<< "$MATRIX")" >> $GITHUB_OUTPUT
+          echo "total-groups=$TOTAL_GROUPS" >> $GITHUB_OUTPUT
 
   test:
     needs: calculate-groups
@@ -281,7 +291,31 @@ jobs:
       - uses: actions/setup-node@v4
       - run: npm ci
 
-      - run: npx jest ${{ matrix.specs }}
+      # The spec list is comma-joined, so use a runner that accepts that form.
+      # Pass it through the environment: a spec path interpolated straight into
+      # the command line would run as shell input.
+      - run: npx cypress run --component --spec "$SPECS"
+        env:
+          SPECS: ${{ matrix.specs }}
+```
+
+For a runner that takes space-separated paths, such as Jest, split the list
+first:
+
+```yaml
+      - run: npx jest $(tr ',' ' ' <<< "$SPECS")
+        env:
+          SPECS: ${{ matrix.specs }}
+```
+
+Each spec is relative to `pathPrefix`, so a monorepo consumer runs the step in
+that directory:
+
+```yaml
+      - run: npx cypress run --component --spec "$SPECS"
+        working-directory: apps/web
+        env:
+          SPECS: ${{ matrix.specs }}
 ```
 
 The command writes one JSON line to stdout and sends every progress message to

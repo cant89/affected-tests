@@ -104,6 +104,33 @@ describe('getGroupMatrix', () => {
   });
 });
 
+/**
+ * The round-robin distribution as it stood before splitAllGroups existed.
+ *
+ * splitIntoGroups now delegates to splitAllGroups, so comparing the two would
+ * compare splitAllGroups with itself. This independent copy is what makes the
+ * equivalence claim testable.
+ *
+ * @param array - Items to distribute.
+ * @param totalGroups - Total number of groups.
+ * @param groupIndex - Group to return, 0-based.
+ * @returns The items of that group.
+ */
+function legacySplitIntoGroups<T>(
+  array: T[],
+  totalGroups: number,
+  groupIndex: number
+): T[] {
+  const sortedArray = [...array].sort();
+  const result: T[] = [];
+
+  for (let i = groupIndex; i < sortedArray.length; i += totalGroups) {
+    result.push(sortedArray[i]);
+  }
+
+  return result;
+}
+
 describe('splitAllGroups', () => {
   it('should distribute every item round-robin in one pass', () => {
     const items = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
@@ -115,13 +142,28 @@ describe('splitAllGroups', () => {
     ]);
   });
 
-  it('should match splitIntoGroups for every group', () => {
+  it('should match the pre-refactor round-robin for every group', () => {
     const items = ['e', 'a', 'd', 'b', 'c'];
     const all = splitAllGroups(items, 3);
 
     all.forEach((group, index) =>
-      expect(group).toEqual(splitIntoGroups(items, 3, index))
+      expect(group).toEqual(legacySplitIntoGroups(items, 3, index))
     );
+  });
+
+  it('should distribute a shuffled input to a fixed partition', () => {
+    expect(splitAllGroups(['e', 'a', 'd', 'b', 'c'], 3)).toEqual([
+      ['a', 'd'],
+      ['b', 'e'],
+      ['c'],
+    ]);
+  });
+
+  it('should throw for a non-integer group count', () => {
+    expect(() => splitAllGroups(['a'], Number.NaN)).toThrow(
+      'Invalid group count'
+    );
+    expect(() => splitAllGroups(['a'], 2.5)).toThrow('Invalid group count');
   });
 
   it('should return empty groups when there are fewer items than groups', () => {
@@ -150,6 +192,22 @@ describe('calculateOptimalGroups with a cap', () => {
     expect(() => calculateOptimalGroups(10, 0)).toThrow(
       'Invalid maxTestsPerGroup'
     );
+  });
+
+  it('should throw for a non-integer maximum group size', () => {
+    expect(() => calculateOptimalGroups(10, Number.NaN)).toThrow(
+      'Invalid maxTestsPerGroup'
+    );
+    expect(() => calculateOptimalGroups(10, 2.5)).toThrow(
+      'Invalid maxTestsPerGroup'
+    );
+  });
+
+  it('should throw for a non-integer or negative cap', () => {
+    expect(() => calculateOptimalGroups(10, 5, Number.NaN)).toThrow(
+      'Invalid maxGroups'
+    );
+    expect(() => calculateOptimalGroups(10, 5, -1)).toThrow('Invalid maxGroups');
   });
 });
 
@@ -231,6 +289,25 @@ describe('buildGroupMatrix', () => {
 
     expect(matrix.include).toHaveLength(1);
     matrix.include.forEach((entry) => expect(entry.specs).not.toBe(''));
+  });
+
+  it('should cover every file once when the cap forces uneven groups', () => {
+    const files = Array.from({ length: 10 }, (_, i) => `src/s${i}.spec.tsx`);
+
+    const matrix = buildGroupMatrix(files, {
+      maxTestsPerGroup: 2,
+      maxGroups: 3,
+    });
+
+    const specs = matrix.include.flatMap((entry) => entry.specs.split(','));
+    expect(matrix.include.map((entry) => entry.files.length)).toEqual([4, 3, 3]);
+    expect(new Set(specs).size).toBe(10);
+  });
+
+  it('should throw for a non-integer maximum group size', () => {
+    expect(() =>
+      buildGroupMatrix(['src/a.spec.tsx'], { maxTestsPerGroup: Number.NaN })
+    ).toThrow('Invalid maxTestsPerGroup');
   });
 
   it('should give each group a contiguous label', () => {

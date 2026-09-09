@@ -100,7 +100,7 @@ function printVersion(): void {
   console.log(`affected-tests v${pkg.version}`);
 }
 
-function parseArgs(args: string[]): CLIArgs {
+export function parseArgs(args: string[]): CLIArgs {
   const result: CLIArgs = { command: 'run' };
 
   for (let i = 0; i < args.length; i++) {
@@ -183,7 +183,7 @@ function parseArgs(args: string[]): CLIArgs {
   return result;
 }
 
-function buildConfigFromArgs(args: CLIArgs): PartialConfig & { configPath?: string } {
+export function buildConfigFromArgs(args: CLIArgs): PartialConfig & { configPath?: string } {
   const config: PartialConfig & { configPath?: string } = {};
 
   if (args.config) config.configPath = args.config;
@@ -194,8 +194,14 @@ function buildConfigFromArgs(args: CLIArgs): PartialConfig & { configPath?: stri
   if (args.testCommand) config.testCommand = args.testCommand;
   if (args.testFilePattern) config.testFilePattern = new RegExp(args.testFilePattern);
   if (args.maxTestsPerGroup) config.maxTestsPerGroup = args.maxTestsPerGroup;
-  if (args.maxGroups !== undefined && !Number.isNaN(args.maxGroups))
+  if (args.maxGroups !== undefined) {
+    // A silent skip would leave the cap at the default and start every group
+    // the analysis asks for, which is the opposite of what the flag requests.
+    if (!Number.isInteger(args.maxGroups) || args.maxGroups < 0) {
+      throw new Error('Invalid --max-groups value. Must be 0 or more');
+    }
     config.maxGroups = args.maxGroups;
+  }
   if (args.verbose) config.verbose = args.verbose;
 
   return config;
@@ -211,7 +217,7 @@ function buildRunOptions(args: CLIArgs): RunOptions {
   return options;
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   try {
@@ -286,4 +292,7 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// Only run when this file is the entry point, so a test can import main().
+if (typeof require !== 'undefined' && require.main === module) {
+  main();
+}

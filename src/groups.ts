@@ -10,10 +10,12 @@ import type { GroupMatrix, GroupMatrixOptions } from './types';
  * @param totalGroups - Number of groups to fill.
  * @returns One array for each group, in group order. A group is empty when
  * there are fewer items than groups.
- * @throws {Error} When `totalGroups` is less than 1.
+ * @throws {Error} When `totalGroups` is not an integer of at least 1. NaN must
+ * fail here: `NaN < 1` is false, so a bare range test lets it reach the
+ * round-robin fill and throw an opaque TypeError instead.
  */
 export function splitAllGroups<T>(items: T[], totalGroups: number): T[][] {
-  if (totalGroups < 1) {
+  if (!Number.isInteger(totalGroups) || totalGroups < 1) {
     throw new Error(`Invalid group count: ${totalGroups}. Must be at least 1`);
   }
 
@@ -60,17 +62,23 @@ export function splitIntoGroups<T>(
  * because each group costs one runner. Groups then hold more than
  * `maxTestsPerGroup` tests.
  * @returns Optimal number of groups
- * @throws {Error} When `maxTestsPerGroup` is less than 1.
+ * @throws {Error} When `maxTestsPerGroup` is not an integer of at least 1, or
+ * `maxGroups` is not an integer of at least 0. NaN must fail here: `NaN < 1` is
+ * false, so a bare range test lets it through and produces a NaN group count.
  */
 export function calculateOptimalGroups(
   totalTests: number,
   maxTestsPerGroup: number,
   maxGroups = 0
 ): number {
-  if (maxTestsPerGroup < 1) {
+  if (!Number.isInteger(maxTestsPerGroup) || maxTestsPerGroup < 1) {
     throw new Error(
       `Invalid maxTestsPerGroup: ${maxTestsPerGroup}. Must be at least 1`
     );
+  }
+
+  if (!Number.isInteger(maxGroups) || maxGroups < 0) {
+    throw new Error(`Invalid maxGroups: ${maxGroups}. Must be 0 or more`);
   }
 
   if (totalTests === 0) return 0;
@@ -94,6 +102,8 @@ export function calculateOptimalGroups(
  * @param maxTestsPerGroup - Maximum tests per group
  * @param maxGroups - Upper limit on the number of groups. Use 0 for no limit.
  * @returns The group count and the list of group indices.
+ * @throws {Error} When `maxTestsPerGroup` or `maxGroups` is out of range, as
+ * {@link calculateOptimalGroups} defines.
  * @deprecated Use {@link buildGroupMatrix}. A matrix of bare indices makes each
  * CI job repeat the git fetch and the dependency analysis to learn its specs.
  */
@@ -124,7 +134,8 @@ export function getGroupMatrix(
  * @returns A matrix with one entry for each non-empty group. `group` is a
  * contiguous label, not an index into a later split, because the entry already
  * carries its specs.
- * @throws {Error} When `maxTestsPerGroup` is less than 1.
+ * @throws {Error} When `maxTestsPerGroup` or `maxGroups` is out of range, as
+ * {@link calculateOptimalGroups} defines.
  */
 export function buildGroupMatrix(
   testFiles: string[],
