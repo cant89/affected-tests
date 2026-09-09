@@ -2,29 +2,77 @@ import { execSync } from 'child_process';
 import type { Config, Logger } from './types';
 
 /**
+ * Git refuses `--unshallow` on a repository that already holds its complete
+ * history. That is the one fetch failure this tool accepts.
+ */
+const COMPLETE_REPOSITORY_ERROR = /unshallow on a complete repository/i;
+
+/**
+ * Read every output stream of a failed command.
+ *
+ * @param error - The value `execSync` threw.
+ * @returns The stderr, stdout, and message of the failure, joined by newlines.
+ */
+function readCommandError(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const { stderr, stdout, message } = error as {
+      stderr?: Buffer | string;
+      stdout?: Buffer | string;
+      message?: string;
+    };
+
+    return [stderr, stdout, message]
+      .filter((part) => part !== undefined && part !== null)
+      .map(String)
+      .join('\n');
+  }
+
+  return String(error);
+}
+
+/**
  * Ensure git history is available in CI environments
+ *
+ * A failed fetch must not pass silently. The analysis runs once and produces
+ * the spec list of every CI job, so an incomplete history selects the wrong
+ * specs and the run reports success without testing the change.
+ *
+ * @param logger - Logger that receives the progress output.
+ * @throws {Error} When a fetch fails for any reason other than `--unshallow`
+ * on a repository that is already complete.
  */
 function ensureGitHistory(logger: Logger): void {
   if (!process.env.CI) {
     return;
   }
 
+  logger.debug('\n📥 Fetching Git History');
+  logger.debug('----------------------');
+
   try {
-    logger.debug('\n📥 Fetching Git History');
-    logger.debug('----------------------');
-
-    // Fetch more history and all branches to ensure we have the required refs
-    execSync('git fetch --prune --unshallow > /dev/null 2>&1 || true');
-    execSync(
-      'git fetch origin +refs/heads/*:refs/remotes/origin/* > /dev/null 2>&1 || true'
-    );
-
-    logger.debug('✅ Git history fetched successfully\n');
+    execSync('git fetch --prune --unshallow', { stdio: 'pipe' });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`❌ Error fetching git history: ${message}`);
+    const output = readCommandError(error);
+
+    if (!COMPLETE_REPOSITORY_ERROR.test(output)) {
+      logger.error(`❌ Error fetching git history: ${output}`);
+      throw error;
+    }
+
+    logger.debug('Repository already holds its complete history');
+  }
+
+  try {
+    execSync('git fetch origin +refs/heads/*:refs/remotes/origin/*', {
+      stdio: 'pipe',
+    });
+  } catch (error) {
+    const output = readCommandError(error);
+    logger.error(`❌ Error fetching git history: ${output}`);
     throw error;
   }
+
+  logger.debug('✅ Git history fetched successfully\n');
 }
 
 /**

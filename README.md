@@ -7,6 +7,7 @@ Run only the tests affected by your code changes. Uses dependency analysis to fi
 - **Smart dependency analysis** - Uses [madge](https://github.com/pahen/madge) to build a dependency graph and find all test files affected by changes
 - **Works with any test runner** - Cypress, Jest, Vitest, or any CLI-based test runner
 - **Parallel CI support** - Automatically split tests into groups for parallel execution
+- **Analyze once, fan out** - `matrix` emits a CI matrix that carries the specs of each group, so no CI job repeats the analysis
 - **Monorepo friendly** - Configurable path prefixes and source directories
 - **GitHub Actions integration** - Detects PR context and base branches automatically
 - **Zero config** - Sensible defaults work out of the box
@@ -46,8 +47,8 @@ npx affected-tests run
 # See what would run without executing
 npx affected-tests run --dry-run
 
-# Get optimal group count for CI matrix
-npx affected-tests groups
+# Get a CI matrix that carries the specs of each group
+npx affected-tests matrix
 ```
 
 ## CLI Usage
@@ -58,11 +59,12 @@ affected-tests [command] [options]
 
 ### Commands
 
-| Command   | Description                                   |
-| --------- | --------------------------------------------- |
-| `run`     | Run affected tests (default)                  |
-| `analyze` | Analyze affected tests without running        |
-| `groups`  | Output optimal number of groups for CI matrix |
+| Command   | Description                                                             |
+| --------- | ----------------------------------------------------------------------- |
+| `run`     | Run affected tests (default)                                            |
+| `analyze` | Analyze affected tests without running                                  |
+| `matrix`  | Output a CI matrix that carries the specs of each group                 |
+| `groups`  | Output optimal number of groups for CI matrix (deprecated, use `matrix`) |
 
 ### Options
 
@@ -76,6 +78,7 @@ affected-tests [command] [options]
 | `--test-command`     | Test command template (use `{specs}` placeholder) | `npx cypress run...`          |
 | `--test-pattern`     | Regex pattern for test files                      | `\.spec\.(ts\|tsx\|js\|jsx)$` |
 | `--max-tests <n>`    | Max tests per group                               | `20`                          |
+| `--max-groups <n>`   | Cap on the number of groups (`0` for no cap)      | `0`                           |
 | `--group <n>`        | Group index (0-based) for parallel runs           | -                             |
 | `--total-groups <n>` | Total number of groups                            | -                             |
 | `--verbose`          | Enable verbose output                             | `false`                       |
@@ -143,6 +146,11 @@ module.exports = {
   // Max tests per group for parallel execution
   maxTestsPerGroup: 20,
 
+  // Cap on the number of groups. Each group costs one CI runner, so a cap
+  // protects the matrix from a change that affects the whole suite.
+  // Use 0 for no cap.
+  maxGroups: 0,
+
   // Skip TypeScript type-only imports
   skipTypeImports: true,
 
@@ -150,6 +158,17 @@ module.exports = {
   verbose: false,
 };
 ```
+
+### Validation
+
+`maxTestsPerGroup` must be an integer of 1 or more, and `maxGroups` an integer
+of 0 or more. A value outside that range fails the command instead of running a
+reduced set of tests.
+
+`calculateOptimalGroups`, `buildGroupMatrix`, and `getAffectedTestMatrix` throw
+for such a value. Before version 0.1.0, `calculateOptimalGroups` returned
+`Infinity` for a `maxTestsPerGroup` of 0, and the caller went on to build a
+matrix from it.
 
 Supported config file names (in order of priority):
 
@@ -165,8 +184,8 @@ Supported config file names (in order of priority):
 import {
   runAffectedTests,
   analyzeAffectedTests,
-  getOptimalGroupCount,
-} from "affected-tests";
+  getAffectedTestMatrix,
+} from "affected-tests-runner";
 
 // Analyze affected tests
 const analysis = await analyzeAffectedTests({
@@ -186,8 +205,30 @@ console.log(analysis);
 // Run affected tests
 await runAffectedTests({ srcDir: "./src" }, { groupIndex: 0, totalGroups: 3 });
 
-// Get optimal group count for CI
-const groups = await getOptimalGroupCount({ maxTestsPerGroup: 10 });
+// Get a CI matrix, analyzed once, with the specs of each group
+const matrix = await getAffectedTestMatrix({ maxTestsPerGroup: 10 });
+// {
+//   include: [
+//     { group: 0, specs: 'src/a.spec.ts,src/c.spec.ts', files: [...] },
+//     { group: 1, specs: 'src/b.spec.ts', files: [...] },
+//   ],
+// }
+```
+
+`getAffectedTestMatrix` reads the config file once. To reuse a configuration you
+already resolved, call `analyzeWithConfig` and `buildGroupMatrix` yourself:
+
+```typescript
+import {
+  resolveConfig,
+  analyzeWithConfig,
+  buildGroupMatrix,
+  silentLogger,
+} from "affected-tests-runner";
+
+const config = await resolveConfig({});
+const analysis = await analyzeWithConfig(config, silentLogger);
+const matrix = buildGroupMatrix(analysis.allTestFiles, config);
 ```
 
 ## GitHub Actions Integration
@@ -213,12 +254,17 @@ jobs:
 
 ### Parallel Execution with Dynamic Matrix
 
+The `matrix` command analyzes the changes once and gives each job its own spec
+list. No job repeats the git fetch or the dependency analysis, and each job
+starts the test runner directly.
+
 ```yaml
 jobs:
   calculate-groups:
     runs-on: ubuntu-latest
     outputs:
-      groups: ${{ steps.groups.outputs.groups }}
+      matrix: ${{ steps.groups.outputs.matrix }}
+      total-groups: ${{ steps.groups.outputs.total-groups }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -229,32 +275,86 @@ jobs:
 
       - id: groups
         run: |
-          GROUPS=$(npx affected-tests groups)
-          if [ "$GROUPS" -eq "0" ]; then
-            echo "groups=[]" >> $GITHUB_OUTPUT
-          else
-            echo "groups=$(seq 0 $((GROUPS-1)) | jq -s -c '.')" >> $GITHUB_OUTPUT
+          MATRIX=$(npx affected-tests matrix)
+
+          # Validate before writing either output. Writing the count inside an
+          # echo would mask a jq failure behind echo's own exit code, and an
+          # empty total-groups skips the test job behind a green check.
+          if ! jq -e '.include | type == "array"' <<< "$MATRIX" > /dev/null; then
+            echo "Invalid test matrix: $MATRIX" >&2
+            exit 1
           fi
+
+          TOTAL_GROUPS=$(jq -r '.include | length' <<< "$MATRIX")
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "total-groups=$TOTAL_GROUPS" >> $GITHUB_OUTPUT
 
   test:
     needs: calculate-groups
-    if: needs.calculate-groups.outputs.groups != '[]'
+    # An empty include list cannot expand a matrix, so guard the job.
+    if: needs.calculate-groups.outputs.total-groups > 0
+    # Name the job. The default name lists every value of the include entry,
+    # so it would carry the complete file list.
+    name: Test group ${{ matrix.group }}
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        group: ${{ fromJson(needs.calculate-groups.outputs.groups) }}
+      fail-fast: false
+      matrix: ${{ fromJson(needs.calculate-groups.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - uses: actions/setup-node@v4
       - run: npm ci
 
-      - run: |
-          npx affected-tests run \
-            --group ${{ matrix.group }} \
-            --total-groups ${{ strategy.job-total }}
+      # `files` is an array, so join it with the separator your runner wants.
+      # Pass it through the environment: a spec path interpolated straight into
+      # the command line would run as shell input.
+      - run: npx cypress run --component --spec "$SPECS"
+        env:
+          SPECS: ${{ join(matrix.files) }}
+```
+
+`join` defaults to a comma. A runner that takes space-separated paths, such as
+Jest, asks for a space:
+
+```yaml
+      - run: npx jest $SPECS
+        env:
+          SPECS: ${{ join(matrix.files, ' ') }}
+```
+
+Each path is relative to `pathPrefix`, so a monorepo consumer runs the step in
+that directory:
+
+```yaml
+      - run: npx cypress run --component --spec "$SPECS"
+        working-directory: apps/web
+        env:
+          SPECS: ${{ join(matrix.files) }}
+```
+
+The command writes one JSON line to stdout and sends every progress message to
+stderr, so the output goes straight into `$GITHUB_OUTPUT`:
+
+```json
+{
+  "include": [
+    { "group": 0, "files": ["src/a.spec.ts", "src/c.spec.ts"] },
+    { "group": 1, "files": ["src/b.spec.ts"] }
+  ]
+}
+```
+
+Each entry carries the file list as an array, not a joined string, so the
+separator stays the consumer's choice.
+
+The command exits with a non-zero code when the analysis fails. Do not fall back
+to a default matrix: a wrong matrix hides untested code behind a green check.
+
+Each group costs one runner. Set `maxGroups` when a change that affects the
+whole suite must not start hundreds of jobs:
+
+```bash
+npx affected-tests matrix --max-tests 10 --max-groups 12
 ```
 
 ## How It Works

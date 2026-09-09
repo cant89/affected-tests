@@ -1,23 +1,22 @@
 import { execSync } from 'child_process';
+import { formatSpecs } from './paths';
 import type { Config, Logger } from './types';
 
 /**
  * Build the test command from the template
+ *
+ * @param testFiles - Test files to run, with the path prefix still applied.
+ * @param config - Resolved configuration that holds the command template.
+ * @returns The command with the `{specs}` placeholder replaced.
  */
 function buildCommand(
   testFiles: string[],
   config: Config
 ): string {
-  // Remove path prefix from test files if configured
-  const relativePaths = testFiles.map((file) =>
-    config.pathPrefix ? file.replace(config.pathPrefix, '') : file
+  return config.testCommand.replace(
+    '{specs}',
+    formatSpecs(testFiles, config.pathPrefix)
   );
-
-  // Join with comma (common format for most test runners)
-  const specs = relativePaths.join(',');
-
-  // Replace the {specs} placeholder
-  return config.testCommand.replace('{specs}', specs);
 }
 
 /**

@@ -66,6 +66,14 @@ export interface Config {
   maxTestsPerGroup: number;
 
   /**
+   * Upper limit on the number of groups. Use 0 for no limit.
+   * A limit protects a CI matrix from a change that affects the whole suite,
+   * because each group costs one runner.
+   * @default 0
+   */
+  maxGroups: number;
+
+  /**
    * Whether to skip TypeScript type imports during dependency analysis
    * @default true
    */
@@ -107,6 +115,41 @@ export interface AnalysisResult {
   allTestFiles: string[];
   /** Optimal number of groups for parallel execution */
   optimalGroups: number;
+}
+
+/**
+ * One entry of a CI group matrix
+ */
+export interface GroupMatrixEntry {
+  /** Contiguous label of the group, starting at 0 */
+  group: number;
+  /**
+   * Test files of this group, with the path prefix removed.
+   * A CI job joins them with the separator its runner expects. In GitHub
+   * Actions that is `join(matrix.files)` for a comma, or
+   * `join(matrix.files, ' ')` for a space.
+   */
+  files: string[];
+}
+
+/**
+ * A CI group matrix. The shape matches the `include` key that a GitHub Actions
+ * `strategy.matrix` accepts.
+ */
+export interface GroupMatrix {
+  include: GroupMatrixEntry[];
+}
+
+/**
+ * Options that control how a group matrix is built
+ */
+export interface GroupMatrixOptions {
+  /** Maximum number of tests in one group */
+  maxTestsPerGroup?: number;
+  /** Upper limit on the number of groups. Use 0 for no limit. */
+  maxGroups?: number;
+  /** Path prefix to remove from each spec */
+  pathPrefix?: string;
 }
 
 /**
